@@ -95,7 +95,7 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">✓</span><span>Taskly</span></div>
+        <div className="brand"><img className="brand-logo" src="/taskly-logo.svg" alt="Taskly logo" /><span>Taskly</span></div>
         <nav className="side-nav" aria-label="Main navigation">
           <button className="nav-link active"><Icon name="grid" /> Overview</button>
           <button className="nav-link" onClick={() => setActiveGroup('all')}><Icon name="clipboard" /> My Tasks <span className="nav-count">{stats.active}</span></button>

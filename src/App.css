@@ -7,7 +7,7 @@ button { cursor:pointer; }
 .app-shell { min-height:100vh; display:flex; background:#f8f9fb; color:var(--ink); font-family:'DM Sans',sans-serif; }
 .sidebar { width:232px; padding:31px 18px 24px; background:#fff; border-right:1px solid #f0f0f2; display:flex; flex-direction:column; flex-shrink:0; }
 .brand { display:flex; align-items:center; gap:11px; font:700 22px 'Space Grotesk',sans-serif; letter-spacing:-.5px; padding:0 13px 46px; }
-.brand-mark { display:grid; place-items:center; width:30px; height:30px; border-radius:9px; color:#fff; background:var(--orange); font-size:19px; transform:rotate(-7deg); }
+.brand-logo { display:block; width:30px; height:30px; border-radius:9px; box-shadow:0 5px 10px #ff873133; }
 .side-nav { display:grid; gap:7px; }
 .nav-link { width:100%; border:0; background:transparent; color:#9399a7; display:flex; align-items:center; gap:13px; padding:12px 13px; border-radius:12px; font-size:14px; text-align:left; transition:.18s ease; }
 .nav-link:hover, .nav-link.active { background:#fff2e8; color:var(--orange-deep); }
