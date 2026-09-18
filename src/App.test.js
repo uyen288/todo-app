@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders the task dashboard', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText('Tasklist')).toBeInTheDocument();
+  expect(screen.getByLabelText('New task name')).toBeInTheDocument();
+  expect(screen.getAllByText('New Projects').length).toBeGreaterThan(0);
 });

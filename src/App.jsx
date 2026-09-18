@@ -1,308 +1,105 @@
-import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
 
-// ============================================================================
-// MAIN APP COMPONENT
-// ============================================================================
+const starterTodos = [
+  { id: 1, text: 'Logo Design', group: 'new', done: false },
+  { id: 2, text: 'Brochure Design', group: 'new', done: false },
+  { id: 3, text: 'Homepage Design', group: 'ongoing', done: false },
+  { id: 4, text: 'Logo Changes', group: 'ongoing', done: false },
+  { id: 5, text: 'Flyer Design', group: 'completed', done: true },
+  { id: 6, text: 'Dashboard', group: 'completed', done: true },
+  { id: 7, text: 'ISPS Landing Page', group: 'new', done: false },
+];
+
+function Icon({ name, size = 20, stroke = 'currentColor' }) {
+  const paths = {
+    grid: <><rect x="4" y="4" width="5" height="5" rx="1" /><rect x="15" y="4" width="5" height="5" rx="1" /><rect x="4" y="15" width="5" height="5" rx="1" /><rect x="15" y="15" width="5" height="5" rx="1" /></>,
+    search: <><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></>,
+    bell: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
+    plus: <><path d="M12 5v14M5 12h14" /></>,
+    trash: <><path d="M5 7h14M10 11v6M14 11v6M9 7l1-2h4l1 2m-9 0 1 14h10l1-14" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 1.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.1h-2.6v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-1.8-1.8.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H6v-2.6h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1L9 6.6l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.1h2.6v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.8 1.8-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1V14h-.1a1.7 1.7 0 0 0-1.5 1Z" /></>,
+    edit: <><path d="m15 5 4 4-10 10H5v-4L15 5Z" /><path d="m13 7 4 4" /></>,
+    clipboard: <><path d="M9 4h6l1 2h3v14H5V6h3l1-2Z" /><path d="M9 10h6M9 14h6M9 18h4" /></>,
+  };
+  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+}
 
 function App() {
-  const [todos, setTodos] = useState([]);
-  const [filter, setFilter] = useState('all'); // 'all', 'active', 'completed'
-  const [searchTerm, setSearchTerm] = useState('');
-  const [inputValue, setInputValue] = useState('');
-  const [inputError, setInputError] = useState('');
+  const [todos, setTodos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('todos-v2')) || starterTodos; } catch { return starterTodos; }
+  });
+  const [activeGroup, setActiveGroup] = useState('all');
+  const [search, setSearch] = useState('');
+  const [draft, setDraft] = useState('');
+  const [notice, setNotice] = useState('');
 
-  // Load todos from localStorage on mount
+  useEffect(() => { localStorage.setItem('todos-v2', JSON.stringify(todos)); }, [todos]);
   useEffect(() => {
-    try {
-      const savedTodos = localStorage.getItem('todos');
-      if (savedTodos) {
-        setTodos(JSON.parse(savedTodos));
-      }
-    } catch (error) {
-      console.error('Error loading todos from localStorage:', error);
-    }
-  }, []);
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(''), 2200);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-  // Save todos to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('todos', JSON.stringify(todos));
-    } catch (error) {
-      console.error('Error saving todos to localStorage:', error);
-    }
-  }, [todos]);
+  const stats = useMemo(() => ({
+    total: todos.length,
+    completed: todos.filter((todo) => todo.done).length,
+    active: todos.filter((todo) => !todo.done).length,
+  }), [todos]);
 
-  // Add a new todo
-  const handleAddTodo = (e) => {
-    e.preventDefault();
-    
-    if (!inputValue.trim()) {
-      setInputError('Công việc không thể trống!');
-      return;
-    }
-    
-    setInputError('');
-    
-    const newTodo = {
-      id: Date.now(), // Simple unique ID
-      text: inputValue.trim(),
-      done: false
-    };
-    
-    setTodos([...todos, newTodo]);
-    setInputValue('');
-  };
-
-  // Toggle todo completion status
-  const handleToggleTodo = (id) => {
-    setTodos(todos.map(todo =>
-      todo.id === id ? { ...todo, done: !todo.done } : todo
-    ));
-  };
-
-  // Delete a todo
-  const handleDeleteTodo = (id) => {
-    setTodos(todos.filter(todo => todo.id !== id));
-  };
-
-  // Delete all todos
-  const handleDeleteAll = () => {
-    if (window.confirm('Bạn chắc chắn muốn xóa tất cả công việc?')) {
-      setTodos([]);
-    }
-  };
-
-  // Filter todos based on status
-  const filteredByStatus = todos.filter(todo => {
-    if (filter === 'active') return !todo.done;
-    if (filter === 'completed') return todo.done;
-    return true; // 'all'
+  const filtered = todos.filter((todo) => {
+    const matchesGroup = activeGroup === 'all' || todo.group === activeGroup;
+    return matchesGroup && todo.text.toLowerCase().includes(search.toLowerCase());
   });
 
-  // Further filter by search term
-  const filteredTodos = filteredByStatus.filter(todo =>
-    todo.text.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Calculate statistics
-  const stats = {
-    total: todos.length,
-    completed: todos.filter(t => t.done).length,
-    active: todos.filter(t => !t.done).length
+  const addTodo = (event) => {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text) { setNotice('Please enter a task name first.'); return; }
+    setTodos((current) => [...current, { id: Date.now(), text, group: 'new', done: false }]);
+    setDraft('');
+    setNotice('Task added to New Projects.');
   };
 
+  const toggleTodo = (id) => setTodos((current) => current.map((todo) => todo.id === id ? { ...todo, done: !todo.done, group: !todo.done ? 'completed' : 'ongoing' } : todo));
+  const deleteTodo = (id) => { setTodos((current) => current.filter((todo) => todo.id !== id)); setNotice('Task removed.'); };
+
+  const visibleFor = (group) => filtered.filter((todo) => todo.group === group);
+
   return (
-    <div className="app">
-      <header className="app__header">
-        <h1>📝 Ứng Dụng Todo</h1>
-      </header>
-
-      <main className="app__main">
-        {/* Add Todo Form */}
-        <form className="app__form" onSubmit={handleAddTodo} noValidate>
-          <div className="form-group">
-            <label htmlFor="todo-input">Thêm Công Việc Mới</label>
-            <input
-              id="todo-input"
-              type="text"
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                if (inputError) setInputError('');
-              }}
-              placeholder="Nhập nội dung công việc..."
-              aria-invalid={!!inputError}
-              aria-describedby={inputError ? 'input-error' : undefined}
-            />
-            {inputError && (
-              <span id="input-error" className="error" role="alert">
-                {inputError}
-              </span>
-            )}
-          </div>
-          <button type="submit" className="btn btn--primary">
-            Thêm
-          </button>
-        </form>
-
-        {/* Search Bar */}
-        <div className="search-bar">
-          <label htmlFor="search-input">Tìm Kiếm</label>
-          <input
-            id="search-input"
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm kiếm công việc..."
-          />
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-mark">✓</span><span>Taskly</span></div>
+        <nav className="side-nav" aria-label="Main navigation">
+          <button className="nav-link active"><Icon name="grid" /> Overview</button>
+          <button className="nav-link" onClick={() => setActiveGroup('all')}><Icon name="clipboard" /> My Tasks <span className="nav-count">{stats.active}</span></button>
+          <button className="nav-link" onClick={() => setNotice('Calendar view is coming soon.')}><span className="nav-symbol">◷</span> Calendar</button>
+          <button className="nav-link" onClick={() => setNotice('Reports view is coming soon.')}><span className="nav-symbol">▥</span> Reports</button>
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="mini-progress"><div className="mini-progress__top"><span>Weekly focus</span><strong>{Math.round((stats.completed / Math.max(stats.total, 1)) * 100)}%</strong></div><div className="progress-track"><span style={{ width: `${(stats.completed / Math.max(stats.total, 1)) * 100}%` }} /></div><small>Keep your momentum going</small></div>
+          <button className="nav-link" onClick={() => setNotice('Settings view is coming soon.')}><Icon name="settings" /> Settings</button>
+          <div className="profile"><div className="avatar">AL</div><div><strong>Alex Morgan</strong><span>Product designer</span></div><button aria-label="More profile options" onClick={() => setNotice('Profile menu is coming soon.')}>•••</button></div>
         </div>
+      </aside>
 
-        {/* Filter Bar */}
-        <FilterBar currentFilter={filter} onFilterChange={setFilter} />
+      <main className="main-content">
+        <header className="topbar"><div><p className="eyebrow">Wednesday, September 18</p><h1>Good morning, Alex <span>✦</span></h1></div><div className="top-actions"><label className="search"><Icon name="search" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks" aria-label="Search tasks" /></label><button className="icon-button" aria-label="Notifications" onClick={() => setNotice('You are all caught up.') }><Icon name="bell" size={19} /><i /></button></div></header>
+        <section className="hero-card"><div className="hero-copy"><p className="eyebrow light">Welcome back!</p><h2>Today’s<br /><em>Work Schedule</em></h2><p className="hero-subtitle">A little progress every day adds up to big results.</p><div className="hero-actions"><button className="round-action primary" onClick={() => document.getElementById('new-task').focus()} aria-label="Add a task"><Icon name="plus" /></button><button className="round-action" onClick={() => setTodos([])} aria-label="Clear all tasks"><Icon name="trash" /></button><button className="round-action" onClick={() => setNotice(`${stats.completed} completed · ${stats.active} remaining`)} aria-label="Show task statistics"><Icon name="settings" /></button></div></div><div className="hero-shape shape-one" /><div className="hero-shape shape-two" /><div className="hero-shape shape-three" /><div className="hero-date"><strong>{stats.active}</strong><span>open<br />tasks</span></div></section>
 
-        {/* Statistics */}
-        <Stats stats={stats} />
+        <section className="workspace-head"><div><p className="eyebrow">Your workspace</p><h2>Tasklist <span className="task-total">{stats.total} total</span></h2></div><form className="add-form" onSubmit={addTodo}><input id="new-task" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a new task..." aria-label="New task name" /><button type="submit"><Icon name="plus" size={17} /> Add task</button></form></section>
+        <div className="filter-tabs" role="tablist"><button className={activeGroup === 'all' ? 'selected' : ''} onClick={() => setActiveGroup('all')}>All tasks</button><button className={activeGroup === 'new' ? 'selected' : ''} onClick={() => setActiveGroup('new')}>New Projects <b>{todos.filter((todo) => todo.group === 'new').length}</b></button><button className={activeGroup === 'ongoing' ? 'selected' : ''} onClick={() => setActiveGroup('ongoing')}>On Going <b>{todos.filter((todo) => todo.group === 'ongoing').length}</b></button><button className={activeGroup === 'completed' ? 'selected' : ''} onClick={() => setActiveGroup('completed')}>Completed <b>{stats.completed}</b></button></div>
 
-        {/* Todo List */}
-        {filteredTodos.length > 0 ? (
-          <TodoList
-            todos={filteredTodos}
-            onToggle={handleToggleTodo}
-            onDelete={handleDeleteTodo}
-          />
-        ) : (
-          <p className="empty-state">
-            {todos.length === 0
-              ? 'Không có công việc nào. Thêm một công việc mới!'
-              : 'Không tìm thấy công việc phù hợp.'}
-          </p>
-        )}
-
-        {/* Delete All Button */}
-        {todos.length > 0 && (
-          <button
-            onClick={handleDeleteAll}
-            className="btn btn--danger"
-            style={{ width: '100%', marginTop: '16px' }}
-          >
-            Xóa Tất Cả
-          </button>
-        )}
+        <div className="board"><TaskColumn title="New Projects" color="blue" todos={visibleFor('new')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('new')} /><TaskColumn title="On Going" color="orange" todos={visibleFor('ongoing')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('ongoing')} /><TaskColumn title="Completed" color="green" todos={visibleFor('completed')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('completed')} /></div>
+        {filtered.length === 0 && <div className="empty-state">No tasks match your view. Add a task above to get started.</div>}
+        {notice && <div className="toast" role="status">{notice}</div>}
       </main>
     </div>
   );
 }
 
-// ============================================================================
-// TODO LIST COMPONENT
-// ============================================================================
-
-function TodoList({ todos, onToggle, onDelete }) {
-  return (
-    <ul className="todo-list" role="list" aria-label="Danh sách công việc">
-      {todos.map(todo => (
-        <TodoItem
-          key={todo.id}
-          todo={todo}
-          onToggle={onToggle}
-          onDelete={onDelete}
-        />
-      ))}
-    </ul>
-  );
+function TaskColumn({ title, color, todos, onToggle, onDelete, onAdd }) {
+  return <section className={`task-column ${color}`}><div className="column-heading"><h3>{title}</h3><button onClick={onAdd} aria-label={`Add task to ${title}`}><Icon name="plus" size={18} /></button></div><div className="column-list">{todos.map((todo) => <article className={`task-card ${todo.done ? 'is-done' : ''}`} key={todo.id}><button className="check" onClick={() => onToggle(todo.id)} aria-label={`${todo.done ? 'Reopen' : 'Complete'} ${todo.text}`}>{todo.done ? '✓' : ''}</button><Icon name="clipboard" size={21} stroke={color === 'orange' ? '#fff' : color === 'green' ? '#168c35' : '#3156a7'} /><span>{todo.text}</span><button className="delete-task" onClick={() => onDelete(todo.id)} aria-label={`Delete ${todo.text}`}>×</button></article>)}</div>{todos.length === 0 && <p className="column-empty">Nothing here yet</p>}</section>;
 }
-
-TodoList.propTypes = {
-  todos: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.number.isRequired,
-      text: PropTypes.string.isRequired,
-      done: PropTypes.bool.isRequired
-    })
-  ).isRequired,
-  onToggle: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired
-};
-
-// ============================================================================
-// TODO ITEM COMPONENT
-// ============================================================================
-
-function TodoItem({ todo, onToggle, onDelete }) {
-  return (
-    <li className={`todo-item ${todo.done ? 'todo-item--completed' : ''}`}>
-      <input
-        type="checkbox"
-        checked={todo.done}
-        onChange={() => onToggle(todo.id)}
-        className="todo-item__checkbox"
-        aria-label={`Đánh dấu hoàn thành: ${todo.text}`}
-      />
-      <span className="todo-item__text">{todo.text}</span>
-      <button
-        onClick={() => onDelete(todo.id)}
-        className="btn btn--small btn--danger"
-        aria-label={`Xóa công việc: ${todo.text}`}
-      >
-        ✕
-      </button>
-    </li>
-  );
-}
-
-TodoItem.propTypes = {
-  todo: PropTypes.shape({
-    id: PropTypes.number.isRequired,
-    text: PropTypes.string.isRequired,
-    done: PropTypes.bool.isRequired
-  }).isRequired,
-  onToggle: PropTypes.func.isRequired,
-  onDelete: PropTypes.func.isRequired
-};
-
-// ============================================================================
-// FILTER BAR COMPONENT
-// ============================================================================
-
-function FilterBar({ currentFilter, onFilterChange }) {
-  const filters = [
-    { value: 'all', label: 'Tất Cả' },
-    { value: 'active', label: 'Chưa Hoàn Thành' },
-    { value: 'completed', label: 'Đã Hoàn Thành' }
-  ];
-
-  return (
-    <div className="filter-bar" role="group" aria-label="Lọc công việc">
-      {filters.map(f => (
-        <button
-          key={f.value}
-          onClick={() => onFilterChange(f.value)}
-          className={`btn btn--filter ${currentFilter === f.value ? 'btn--filter--active' : ''}`}
-          aria-pressed={currentFilter === f.value}
-        >
-          {f.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-FilterBar.propTypes = {
-  currentFilter: PropTypes.string.isRequired,
-  onFilterChange: PropTypes.func.isRequired
-};
-
-// ============================================================================
-// STATISTICS COMPONENT
-// ============================================================================
-
-function Stats({ stats }) {
-  return (
-    <div className="stats">
-      <div className="stat">
-        <span className="stat__number">{stats.total}</span>
-        <span className="stat__label">Tổng Cộng</span>
-      </div>
-      <div className="stat">
-        <span className="stat__number">{stats.active}</span>
-        <span className="stat__label">Chưa Hoàn</span>
-      </div>
-      <div className="stat">
-        <span className="stat__number">{stats.completed}</span>
-        <span className="stat__label">Đã Hoàn</span>
-      </div>
-    </div>
-  );
-}
-
-Stats.propTypes = {
-  stats: PropTypes.shape({
-    total: PropTypes.number.isRequired,
-    completed: PropTypes.number.isRequired,
-    active: PropTypes.number.isRequired
-  }).isRequired
-};
 
 export default App;
