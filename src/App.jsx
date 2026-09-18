@@ -33,6 +33,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
 
   useEffect(() => { localStorage.setItem('todos-v2', JSON.stringify(todos)); }, [todos]);
   useEffect(() => {
@@ -64,6 +65,31 @@ function App() {
   const toggleTodo = (id) => setTodos((current) => current.map((todo) => todo.id === id ? { ...todo, done: !todo.done, group: !todo.done ? 'completed' : 'ongoing' } : todo));
   const deleteTodo = (id) => { setTodos((current) => current.filter((todo) => todo.id !== id)); setNotice('Task removed.'); };
 
+  const moveTodo = (draggedId, targetId, targetGroup) => {
+    if (!draggedId) return;
+
+    setTodos((current) => {
+      const sourceIndex = current.findIndex((todo) => todo.id === draggedId);
+      if (sourceIndex === -1) return current;
+
+      const sourceTodo = current[sourceIndex];
+      const updatedTodo = { ...sourceTodo, group: targetGroup || sourceTodo.group };
+      const withoutSource = current.filter((todo) => todo.id !== draggedId);
+
+      if (targetId) {
+        const targetIndex = withoutSource.findIndex((todo) => todo.id === targetId);
+        if (targetIndex !== -1) {
+          withoutSource.splice(targetIndex, 0, updatedTodo);
+          return withoutSource;
+        }
+      }
+
+      return [...withoutSource, updatedTodo];
+    });
+
+    setDraggedTaskId(null);
+  };
+
   const visibleFor = (group) => filtered.filter((todo) => todo.group === group);
 
   return (
@@ -90,7 +116,11 @@ function App() {
         <section className="workspace-head"><div><p className="eyebrow">Your workspace</p><h2>Tasklist <span className="task-total">{stats.total} total</span></h2></div><form className="add-form" onSubmit={addTodo}><input id="new-task" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a new task..." aria-label="New task name" /><button type="submit"><Icon name="plus" size={17} /> Add task</button></form></section>
         <div className="filter-tabs" role="tablist"><button className={activeGroup === 'all' ? 'selected' : ''} onClick={() => setActiveGroup('all')}>All tasks</button><button className={activeGroup === 'new' ? 'selected' : ''} onClick={() => setActiveGroup('new')}>New Projects <b>{todos.filter((todo) => todo.group === 'new').length}</b></button><button className={activeGroup === 'ongoing' ? 'selected' : ''} onClick={() => setActiveGroup('ongoing')}>On Going <b>{todos.filter((todo) => todo.group === 'ongoing').length}</b></button><button className={activeGroup === 'completed' ? 'selected' : ''} onClick={() => setActiveGroup('completed')}>Completed <b>{stats.completed}</b></button></div>
 
-        <div className="board"><TaskColumn title="New Projects" color="blue" todos={visibleFor('new')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('new')} /><TaskColumn title="On Going" color="orange" todos={visibleFor('ongoing')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('ongoing')} /><TaskColumn title="Completed" color="green" todos={visibleFor('completed')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('completed')} /></div>
+        <div className="board">
+          <TaskColumn title="New Projects" color="blue" todos={visibleFor('new')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('new')} onDropTask={moveTodo} onDragStart={setDraggedTaskId} onDragEnd={() => setDraggedTaskId(null)} draggedTaskId={draggedTaskId} />
+          <TaskColumn title="On Going" color="orange" todos={visibleFor('ongoing')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('ongoing')} onDropTask={moveTodo} onDragStart={setDraggedTaskId} onDragEnd={() => setDraggedTaskId(null)} draggedTaskId={draggedTaskId} />
+          <TaskColumn title="Completed" color="green" todos={visibleFor('completed')} onToggle={toggleTodo} onDelete={deleteTodo} onAdd={() => setActiveGroup('completed')} onDropTask={moveTodo} onDragStart={setDraggedTaskId} onDragEnd={() => setDraggedTaskId(null)} draggedTaskId={draggedTaskId} />
+        </div>
         {filtered.length === 0 && <div className="empty-state">No tasks match your view. Add a task above to get started.</div>}
         {notice && <div className="toast" role="status">{notice}</div>}
       </main>
@@ -98,8 +128,71 @@ function App() {
   );
 }
 
-function TaskColumn({ title, color, todos, onToggle, onDelete, onAdd }) {
-  return <section className={`task-column ${color}`}><div className="column-heading"><h3>{title}</h3><button onClick={onAdd} aria-label={`Add task to ${title}`}><Icon name="plus" size={18} /></button></div><div className="column-list">{todos.map((todo) => <article className={`task-card ${todo.done ? 'is-done' : ''}`} key={todo.id}><button className="check" onClick={() => onToggle(todo.id)} aria-label={`${todo.done ? 'Reopen' : 'Complete'} ${todo.text}`}>{todo.done ? '✓' : ''}</button><Icon name="clipboard" size={21} stroke={color === 'orange' ? '#fff' : color === 'green' ? '#168c35' : '#3156a7'} /><span>{todo.text}</span><button className="delete-task" onClick={() => onDelete(todo.id)} aria-label={`Delete ${todo.text}`}>×</button></article>)}</div>{todos.length === 0 && <p className="column-empty">Nothing here yet</p>}</section>;
+function TaskColumn({ title, color, todos, onToggle, onDelete, onAdd, onDropTask, onDragStart, onDragEnd, draggedTaskId }) {
+  const columnGroupMap = { blue: 'new', orange: 'ongoing', green: 'completed' };
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  return (
+    <section
+      className={`task-column ${color} ${isDragOver ? 'drag-over' : ''}`}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsDragOver(false);
+        }
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setIsDragOver(true);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDragOver(false);
+        const draggedId = Number(event.dataTransfer.getData('text/plain'));
+        if (draggedId) onDropTask(draggedId, null, columnGroupMap[color]);
+      }}
+    >
+      <div className="column-heading"><h3>{title}</h3><button onClick={onAdd} aria-label={`Add task to ${title}`}><Icon name="plus" size={18} /></button></div>
+      <div className="column-list">
+        {todos.map((todo) => (
+          <article
+            className={`task-card ${todo.done ? 'is-done' : ''} ${draggedTaskId === todo.id ? 'dragging' : ''}`}
+            key={todo.id}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(todo.id));
+              onDragStart(todo.id);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const draggedId = Number(event.dataTransfer.getData('text/plain'));
+              if (draggedId && draggedId !== todo.id) {
+                onDropTask(draggedId, todo.id, columnGroupMap[color]);
+              }
+            }}
+            onDragEnd={() => {
+              onDragEnd();
+            }}
+          >
+            <button className="check" onClick={() => onToggle(todo.id)} aria-label={`${todo.done ? 'Reopen' : 'Complete'} ${todo.text}`}>{todo.done ? '✓' : ''}</button>
+            <Icon name="clipboard" size={21} stroke={color === 'orange' ? '#fff' : color === 'green' ? '#168c35' : '#3156a7'} />
+            <span>{todo.text}</span>
+            <button className="delete-task" onClick={() => onDelete(todo.id)} aria-label={`Delete ${todo.text}`}>×</button>
+          </article>
+        ))}
+      </div>
+      {todos.length === 0 && <p className="column-empty">Nothing here yet</p>}
+    </section>
+  );
 }
 
 export default App;
